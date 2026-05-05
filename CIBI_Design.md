@@ -131,6 +131,49 @@ When a user logs food without a physical label, a food database API will be used
 | **Nutritionix API** | Clean API, restaurant + branded foods, natural language search | Paid after free tier |
 | **Edamam Food Database** | Good nutrition detail, recipe support | Paid after free tier |
 
+### Application Architecture
+
+**Pattern: MVVM + Repository**
+
+The app uses MVVM as its base pattern, extended with a Repository layer to abstract the multiple data sources (local storage, food database API, Vision/OCR, and LLM). This keeps ViewModels decoupled from any specific data source and makes it straightforward to add CloudKit sync in a future phase.
+
+```
+View (SwiftUI)
+    ↓
+ViewModel (business logic, state)
+    ↓
+Repository (abstracts data access)
+    ↓
+Services / Data Sources
+    ├── VisionService       (camera + OCR)
+    ├── FoodDatabaseService (external API)
+    ├── LLMService          (AFM or Gemma 4)
+    └── LocalStore          (SwiftData / CoreData)
+```
+
+**Layer responsibilities:**
+- **View** — purely UI, observes ViewModel state, contains no logic.
+- **ViewModel** — handles user actions, coordinates services, formats data for the view.
+- **Repository** — single interface for food log data; decides whether to fetch from local store, API, or LLM.
+- **Services** — each external concern is isolated (camera, food API, LLM, storage).
+
+**Example flow — scanning a nutrition label:**
+```
+FoodLogView
+    → FoodLogViewModel
+        → VisionService.scanLabel(image)
+        → FoodLogRepository.save(entry)
+            → LocalStore.save(entry)
+```
+
+**Example flow — querying food logs with LLM:**
+```
+FoodLogView
+    → FoodLogViewModel
+        → FoodLogRepository.fetch(dateRange)
+        → LLMService.query(prompt, context: logs)
+```
+
 ### Open Design Questions
 - [ ] High-level architecture diagram
 - [ ] Data models (e.g., `FoodLog`, `Meal`, `NutritionEntry`)
